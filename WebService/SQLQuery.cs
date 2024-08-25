@@ -1,198 +1,160 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using System.Data.SqlClient;
-using System.Linq;
 
 namespace WebService
 {
     public class SQLQuery
     {
-        static string connectionString = @"Data Source=DESKTOP-D2G2B8C\LAB3D;Initial Catalog=Watch;Integrated Security=True";
+        static string connectionString = @"Data Source=THANHTAN\SQLEXPRESS;Initial Catalog=Watch;Integrated Security=True";
 
         /// <summary>
-        /// Truy vấn trả về một DataTable, phù hợp thực hiện các truy vấn như Select.
+        /// Executes a query that returns a DataTable.
         /// </summary>
-        public static DataTable ExecuteQuery(string query, object[] parameters = null)
+        public static DataTable ExecuteQuery(string query, SqlParameter[] parameters = null)
         {
             DataTable dt = new DataTable();
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                connection.Open();
-                SqlCommand command = new SqlCommand(query, connection);
-                try
+                using (SqlCommand command = new SqlCommand(query, connection))
                 {
                     if (parameters != null)
                     {
-                        string[] listPara = query.Split(' ');
-                        int i = 0;
-                        foreach (string item in listPara)
-                            if (item.Contains('@'))
-                            {
-                                string tmp = item;
-                                if (item[item.Length - 1] == ',')
-                                    tmp = item.Remove(item.Length - 1);
-                                command.Parameters.AddWithValue(tmp, parameters[i]);
-                                i++;
-                            }
+                        command.Parameters.AddRange(parameters);
                     }
-                    SqlDataAdapter adapter = new SqlDataAdapter(command);
-                    adapter.Fill(dt);
-                }
-                catch (System.Exception ex)
-                {
-                    throw ex;
-                }
-                finally
-                {
-                    connection.Close();
+
+                    using (SqlDataAdapter adapter = new SqlDataAdapter(command))
+                    {
+                        try
+                        {
+                            connection.Open();
+                            adapter.Fill(dt);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log exception or handle it appropriately
+                            throw;
+                        }
+                    }
                 }
             }
             return dt;
         }
 
         /// <summary>
-        /// Truy vấn phù hợp thực hiện các truy vấn như Insert, Update, Delete.
+        /// Executes a query that performs an action like Insert, Update, or Delete.
         /// </summary>
-        public static int ExecuteNonQuery(string query, object[] parameters = null)
+        public static int ExecuteNonQuery(string query, SqlParameter[] parameters = null)
         {
             int data = 0;
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                connection.Open();
-                SqlCommand command = new SqlCommand(query, connection);
-                try
+                using (SqlCommand command = new SqlCommand(query, connection))
                 {
                     if (parameters != null)
                     {
-                        string[] listPara = query.Split(' ');
-                        int i = 0;
-                        foreach (string item in listPara)
-                            if (item.Contains('@'))
-                            {
-                                string tmp = item;
-                                if (item[item.Length - 1] == ',')
-                                    tmp = item.Remove(item.Length - 1);
-                                command.Parameters.AddWithValue(tmp, parameters[i]);
-                                i++;
-                            }
+                        command.Parameters.AddRange(parameters);
                     }
-                    data = command.ExecuteNonQuery();
-                }
-                catch (SqlException ex)
-                {
-                    throw ex;
-                }
-                finally
-                {
-                    connection.Close();
+
+                    try
+                    {
+                        connection.Open();
+                        data = command.ExecuteNonQuery();
+                    }
+                    catch (SqlException ex)
+                    {
+                        // Log exception or handle it appropriately
+                        throw;
+                    }
                 }
             }
             return data;
         }
 
         /// <summary>
-        /// Trả về một giá trị duy nhất - ở hàng đầu tiên, cột đầu tiên
+        /// Executes a query that returns a single value.
         /// </summary>
-        public static object ExecuteScalar(string query, object[] parameters = null)
+        public static object ExecuteScalar(string query, SqlParameter[] parameters = null)
         {
-            object data = 0;
+            object data = null;
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                connection.Open();
-                SqlCommand command = new SqlCommand(query, connection);
-                try
+                using (SqlCommand command = new SqlCommand(query, connection))
                 {
                     if (parameters != null)
                     {
-                        string[] listPara = query.Split(' ');
-                        int i = 0;
-                        foreach (string item in listPara)
-                            if (item.Contains('@'))
-                            {
-                                string tmp = item;
-                                if (item[item.Length - 1] == ',')
-                                    tmp = item.Remove(item.Length - 1);
-                                command.Parameters.AddWithValue(tmp, parameters[i]);
-                                i++;
-                            }
+                        command.Parameters.AddRange(parameters);
                     }
-                    data = command.ExecuteScalar();
-                }
-                catch (System.Exception ex)
-                {
-                    throw ex;
-                }
-                finally
-                {
-                    connection.Close();
+
+                    try
+                    {
+                        connection.Open();
+                        data = command.ExecuteScalar();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log exception or handle it appropriately
+                        throw;
+                    }
                 }
             }
             return data;
         }
 
         /// <summary>
-        /// Kiểm tra khoá chính có tồn tại hay không?
+        /// Checks if a primary key exists in a table.
         /// </summary>
-        /// <returns></returns>
         public static bool HasExistPrimaryKey(string tableName, string primaryKeyName, object primaryKeyValue)
         {
-            bool check = false;
+            bool exists = false;
+            string query = $"SELECT COUNT(1) FROM {tableName} WHERE {primaryKeyName} = @PrimaryKeyValue";
+
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                connection.Open();
-                string query = "";
-                double doubleValue = 0.0;
-                try
+                using (SqlCommand command = new SqlCommand(query, connection))
                 {
-                    if (double.TryParse(primaryKeyValue.ToString(), out doubleValue))
+                    command.Parameters.AddWithValue("@PrimaryKeyValue", primaryKeyValue);
+
+                    try
                     {
-                        // Sử dụng cho các trường hợp là số: int, float, ...
-                        query = @"select " + primaryKeyName + " from " + tableName + " where " + primaryKeyName + " = " + primaryKeyValue;
+                        connection.Open();
+                        exists = (int)command.ExecuteScalar() > 0;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // Sử dụng cho các trường hợp là kí tự hoặc ngày: nvarchar, varchar, date, time, datetime
-                        query = @"select " + primaryKeyName + " from " + tableName + " where " + primaryKeyName + " = N'" + primaryKeyValue + "'";
+                        // Log exception or handle it appropriately
+                        throw;
                     }
-                    SqlCommand command = new SqlCommand(query, connection);
-                    if (command.ExecuteScalar() != null)
-                        check = true;
-                }
-                catch (System.Exception ex)
-                {
-                    throw ex;
-                }
-                finally
-                {
-                    connection.Close();
                 }
             }
-            return check;
+            return exists;
         }
 
         /// <summary>
-        /// Lấy bảng từ cơ sở dữ liệu
+        /// Gets all rows from a specified table.
         /// </summary>
-        /// <param name="tableName"></param>
-        /// <returns></returns>
-        public DataTable GetTable(string tableName)
+        public static DataTable GetTable(string tableName)
         {
             DataTable dt = new DataTable();
+            string query = $"SELECT * FROM {tableName}";
+
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                string query = @"select * from " + tableName;
-                SqlCommand command = new SqlCommand(query, connection);
-                try
+                using (SqlCommand command = new SqlCommand(query, connection))
                 {
-                    SqlDataAdapter adapter = new SqlDataAdapter(command);
-                    adapter.Fill(dt);
-                }
-                catch (System.Exception ex)
-                {
-                    throw ex;
-                }
-                finally
-                {
-                    connection.Close();
+                    using (SqlDataAdapter adapter = new SqlDataAdapter(command))
+                    {
+                        try
+                        {
+                            connection.Open();
+                            adapter.Fill(dt);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log exception or handle it appropriately
+                            throw;
+                        }
+                    }
                 }
             }
             return dt;
